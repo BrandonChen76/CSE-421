@@ -90,8 +90,15 @@ struct thread
     int priority;                       /* Priority. */
     struct list_elem allelem;           /* List element for all threads list. */
 
-    int wakeup_time;                    /* I Added this so that I dont have to make a whole new struct for sleeping threads. */ //-------------------------------------------------------------------------------------
-    struct list_elem sleepelem;         /* List element for sleeping threads list. It should know its relative position to the thread address*/ //---------------------------------------------------------------------
+    int wakeup_time;                    /* I Added this so that I dont have to make a whole new struct for sleeping threads. */ //---------------------------------------------------------------
+    struct list_elem sleepelem;         /* List element for sleeping threads list. It should know its relative position to the thread address*/ //-----------------------------------------------
+    //struct list waiting_threads;        /* List of all threads that is waiting for this thread */ //=============================================================================================
+    //struct list_elem waitingelem        /* List element for being in the waiting list of another thread */ //====================================================================================
+
+    int holder_prev_priority;           /* This is to record the effective priority of the holder before it would updated by this thread; -1/NULL means effective priority isn't in effect */ //=
+    struct thread *waiting_for;         /* The thread that this thread is waiting for; NULL means it isnt waiting for anyone(no nested) */ //====================================================
+
+    int eff_priority;                   /* Effective Priority */ //======================================================================================================================================
 
     /* Shared between thread.c and synch.c. */
     struct list_elem elem;              /* List element. */

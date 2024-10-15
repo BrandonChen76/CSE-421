@@ -196,6 +196,16 @@ lock_acquire (struct lock *lock)
   ASSERT (!intr_context ());
   ASSERT (!lock_held_by_current_thread (lock));
 
+  //General idea: record list of threads that are waiting for holding thread, set effective priority to the highest priority.
+  // if (!lock_try_acquire(lock))                             /* If the lock as owner, it should be locked and now the function can help current thread push the holding thread up */ //==============
+  // {
+  //   int donation = thread_get_priority();
+  //   thread_current()->waiting_for = lock->holder;                             /* Add the current thread to waiting list, current thread is waiting on the holding thread */
+  //   thread_current()->holder_prev_priority = lock->holder->priority;
+  //   lock->holder->eff_priority = donation;
+  //   /* Loop throu */
+  // }
+
   sema_down (&lock->semaphore);
   lock->holder = thread_current ();
 }

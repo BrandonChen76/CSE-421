@@ -101,7 +101,7 @@ sleeping_thread
   struct sleeping_thread *next_thread;
 };
 
-/* For sorting the list, in acending order */
+/* For sorting the list, in acending order */ //--------------------------------------------------------------------------------------------------------------------------
 bool
 compare (const struct list_elem *a, const struct list_elem *b)
 {
