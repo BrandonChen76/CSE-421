@@ -201,7 +201,7 @@ lock_acquire (struct lock *lock)
   // {
   //   int donation = thread_get_priority();
   //   thread_current()->waiting_for = lock->holder;                             /* Add the current thread to waiting list, current thread is waiting on the holding thread */
-  //   thread_current()->holder_prev_priority = lock->holder->priority;
+  //   thread_current()->holder_prev_priority = lock->holder->priority;          /* Record the previous effective priority before donating*/
   //   lock->holder->eff_priority = donation;
   //   /* Loop throu */
   // }

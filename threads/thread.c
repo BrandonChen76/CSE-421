@@ -231,17 +231,17 @@ bool
 priority_ordering (const struct list_elem *a, const struct list_elem *b, void *aux)
 {
   //return true if priority of a is greater than or equal to b ========================================================================================
-  // struct thread *thread_a = list_entry(a, struct thread, elem);
-  // struct thread *thread_b = list_entry(b, struct thread, elem);
-  // //int priority_a = thread_get_priority();
-  // int priority_a = thread_a->priority;
-  // if(thread_a->priority < thread_a->eff_priority)
-  //   priority_a = thread_a->eff_priority;
-  // int priority_b = thread_b->priority;
-  // if(thread_b->priority < thread_b->eff_priority)
-  //   priority_b = thread_b->eff_priority;
+  struct thread *thread_a = list_entry(a, struct thread, elem);
+  struct thread *thread_b = list_entry(b, struct thread, elem);
+  //int priority_a = thread_get_priority();
+  int priority_a = thread_a->priority;
+  if(thread_a->priority < thread_a->eff_priority)
+    priority_a = thread_a->eff_priority;
+  int priority_b = thread_b->priority;
+  if(thread_b->priority < thread_b->eff_priority)
+    priority_b = thread_b->eff_priority;
 
-  // return (priority_a >= priority_b);
+  return (priority_a >= priority_b);
 
   // struct thread *thread_a = list_entry(a, struct thread, elem);
   // struct thread *thread_b = list_entry(b, struct thread, elem);
@@ -249,7 +249,7 @@ priority_ordering (const struct list_elem *a, const struct list_elem *b, void *a
   // int priority_b = (thread_b->priority < thread_b->eff_priority) ? thread_b->eff_priority : thread_b->priority;
 
   // return (priority_a > priority_b);
-  return list_entry(a,struct thread,elem)->priority > list_entry(b,struct thread,elem)->priority;
+  // return list_entry(a,struct thread,elem)->priority > list_entry(b,struct thread,elem)->priority;
 }
 
 /* Transitions a blocked thread T to the ready-to-run state.
