@@ -201,8 +201,12 @@ thread_create (const char *name, int priority,
   /* Add to run queue. */
   thread_unblock (t);
 
-  //Now that priority is at play, if it is created and highest priority, it should immediatly run
-  if(priority > thread_current()->priority){
+  // initiate list of donators ===============================================================================
+  list_init (&t->donators);
+
+  //Now that priority is at play, if it is created and highest priority, it should immediatly run ========================================================================
+  int curr_priority = (thread_current()->eff_priority > thread_current()->priority) ? thread_current()->eff_priority : thread_current()->priority;
+  if(priority > curr_priority){
     thread_yield();
   }
 
@@ -233,23 +237,10 @@ priority_ordering (const struct list_elem *a, const struct list_elem *b, void *a
   //return true if priority of a is greater than or equal to b ========================================================================================
   struct thread *thread_a = list_entry(a, struct thread, elem);
   struct thread *thread_b = list_entry(b, struct thread, elem);
-  //int priority_a = thread_get_priority();
-  int priority_a = thread_a->priority;
-  if(thread_a->priority < thread_a->eff_priority)
-    priority_a = thread_a->eff_priority;
-  int priority_b = thread_b->priority;
-  if(thread_b->priority < thread_b->eff_priority)
-    priority_b = thread_b->eff_priority;
+  int priority_a = (thread_a->eff_priority > thread_a->priority) ? thread_a->eff_priority : thread_a->priority;
+  int priority_b = (thread_b->eff_priority > thread_b->priority) ? thread_b->eff_priority : thread_b->priority;
 
-  return (priority_a >= priority_b);
-
-  // struct thread *thread_a = list_entry(a, struct thread, elem);
-  // struct thread *thread_b = list_entry(b, struct thread, elem);
-  // int priority_a = (thread_a->priority < thread_a->eff_priority) ? thread_a->eff_priority : thread_a->priority;
-  // int priority_b = (thread_b->priority < thread_b->eff_priority) ? thread_b->eff_priority : thread_b->priority;
-
-  // return (priority_a > priority_b);
-  // return list_entry(a,struct thread,elem)->priority > list_entry(b,struct thread,elem)->priority;
+  return (priority_a > priority_b);
 }
 
 /* Transitions a blocked thread T to the ready-to-run state.
@@ -273,8 +264,13 @@ thread_unblock (struct thread *t)
   //list_push_back (&ready_list, &t->elem);
   list_insert_ordered (&ready_list, &t->elem, priority_ordering, NULL);       /* instead of pushing to back of list, insert it in list based on order of priority */ //======================
   t->status = THREAD_READY;
-  // thread_yield();
   intr_set_level (old_level);
+  //Now that priority is at play, if it is created and highest priority, it should immediatly run ========================================================================
+  // int priority = (t->eff_priority > t->priority) ? t->eff_priority : t->priority;
+  // int curr_priority = (thread_current()->eff_priority > thread_current()->priority) ? thread_current()->eff_priority : thread_current()->priority;
+  // if(thread_current() != idle_thread && priority > curr_priority){
+  //   thread_yield();
+  // }
 }
 
 /* Returns the name of the running thread. */
@@ -378,10 +374,10 @@ thread_set_priority (int new_priority)
   //If the next thread exists and has higher priority, yield thread ============================================================================================================
   if (!list_empty(&ready_list)) {
     struct thread *next_thread = list_entry(list_front(&ready_list), struct thread, elem);
-    int next_thread_priority = next_thread->priority;
-    if(next_thread->priority < next_thread->eff_priority)
-    next_thread_priority = next_thread->eff_priority;
-    thread_yield();                             /* Might have to change the behavior of yield to insert to list in order of priority */ //=======================================
+    int next_thread_priority = (next_thread->eff_priority > next_thread->priority) ? next_thread->eff_priority : next_thread->priority;
+    if (next_thread_priority > new_priority) {
+      thread_yield(); 
+    }                          /* Might have to change the behavior of yield to insert to list in order of priority */ //=======================================
   }
   intr_set_level (old_level);
 }
@@ -390,12 +386,8 @@ thread_set_priority (int new_priority)
 int
 thread_get_priority (void) 
 {
-  //Return the highest of effective priority and original prirority (eff_priority should be init to -1) =============================================================================
-  int output = thread_current()->priority;
-  if (thread_current()->priority < thread_current()->eff_priority){
-    output = thread_current()->eff_priority;
-  }
-  return output;
+  //Return the highest of effective priority and original prirority =============================================================================
+  return (thread_current()->eff_priority > thread_current()->priority) ? thread_current()->eff_priority : thread_current()->priority;
 }
 
 /* Sets the current thread's nice value to NICE. */
@@ -524,6 +516,9 @@ init_thread (struct thread *t, const char *name, int priority)
 
   //initialize effective priority to -1 ====================================================================================================================================
   t->eff_priority = -1;
+
+  //set waiting for to NULL
+  t->waiting_for = NULL;
 }
 
 /* Allocates a SIZE-byte frame at the top of thread T's stack and

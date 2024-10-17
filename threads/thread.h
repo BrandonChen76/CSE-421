@@ -95,8 +95,11 @@ struct thread
     //struct list waiting_threads;        /* List of all threads that is waiting for this thread */ //=============================================================================================
     //struct list_elem waitingelem        /* List element for being in the waiting list of another thread */ //====================================================================================
 
-    int holder_prev_priority;           /* This is to record the effective priority of the holder before it would updated by this thread; -1/NULL means effective priority isn't in effect */ //=
+    //int holder_prev_priority;           /* This is to record the effective priority of the holder before it would updated by this thread; -1/NULL means effective priority isn't in effect */ //=
     struct thread *waiting_for;         /* The thread that this thread is waiting for; NULL means it isnt waiting for anyone(no nested) */ //====================================================
+    struct thread *donator;
+    struct list donators;               /* List of donators in order of highest donation to lowest */ //====================================================================
+    struct list_elem donatorselem;       /* List element for donator list */
 
     int eff_priority;                   /* Effective Priority */ //======================================================================================================================================
 
