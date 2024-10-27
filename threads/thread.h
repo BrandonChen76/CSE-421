@@ -4,6 +4,7 @@
 #include <debug.h>
 #include <list.h>
 #include <stdint.h>
+#include "threads/synch.h"
 
 /* States in a thread's life cycle. */
 enum thread_status
@@ -90,22 +91,27 @@ struct thread
     int priority;                       /* Priority. */
     struct list_elem allelem;           /* List element for all threads list. */
 
-    int wakeup_time;                    /* I Added this so that I dont have to make a whole new struct for sleeping threads. */ //---------------------------------------------------------------
-    struct list_elem sleepelem;         /* List element for sleeping threads list. It should know its relative position to the thread address*/ //-----------------------------------------------
-    //struct list waiting_threads;        /* List of all threads that is waiting for this thread */ //=============================================================================================
-    //struct list_elem waitingelem        /* List element for being in the waiting list of another thread */ //====================================================================================
+    //extra stuffs need for thread----------------------------------------------------------------------
+    int64_t wake_up_time;    //keep track of sleep thread wake time
+    struct list_elem sleepelem;  //store the sleep elem
+    struct semaphore sema;   //handle sleep and wake up
+   //----------------------------------------------------------------------------------------------------
 
-    //int holder_prev_priority;           /* This is to record the effective priority of the holder before it would updated by this thread; -1/NULL means effective priority isn't in effect */ //=
-    struct thread *waiting_for;         /* The thread that this thread is waiting for; NULL means it isnt waiting for anyone(no nested) */ //====================================================
-    struct thread *donator;
-    struct list donators;               /* List of donators in order of highest donation to lowest */ //====================================================================
-    struct list_elem donatorselem;       /* List element for donator list */
+   //extra stuff need for phase 2------------------------------------------------------------------------
+   int original_priority;    
+   struct list donation_list; 
+   struct lock *waiting_lock; 
+   struct list_elem donation_elem;
+   //----------------------------------------------------------------------------------------------------
 
-    int eff_priority;                   /* Effective Priority */ //======================================================================================================================================
+   //extra stuffs need for phase....------------------------------------------------------------------------
+   int nice; 
+   int recent_cpu;
+   //----------------------------------------------------------------------------------------------------
 
     /* Shared between thread.c and synch.c. */
     struct list_elem elem;              /* List element. */
-
+    
 #ifdef USERPROG
     /* Owned by userprog/process.c. */
     uint32_t *pagedir;                  /* Page directory. */
@@ -115,10 +121,14 @@ struct thread
     unsigned magic;                     /* Detects stack overflow. */
   };
 
+
+
 /* If false (default), use round-robin scheduler.
    If true, use multi-level feedback queue scheduler.
    Controlled by kernel command-line option "-o mlfqs". */
 extern bool thread_mlfqs;
+
+bool thread_priority_compare(const struct list_elem *a, const struct list_elem *b, void *aux UNUSED);
 
 void thread_init (void);
 void thread_start (void);
@@ -128,6 +138,9 @@ void thread_print_stats (void);
 
 typedef void thread_func (void *aux);
 tid_t thread_create (const char *name, int priority, thread_func *, void *);
+
+void donate_priority(struct thread *donor, struct thread *receiver);
+void remove_donation(struct thread *t, struct lock *lock);
 
 void thread_block (void);
 void thread_unblock (struct thread *);
@@ -148,7 +161,8 @@ void thread_set_priority (int);
 
 int thread_get_nice (void);
 void thread_set_nice (int);
+void update_load_avg(void);
 int thread_get_recent_cpu (void);
+void update_all_recent_cpu(void);
 int thread_get_load_avg (void);
-
 #endif /* threads/thread.h */

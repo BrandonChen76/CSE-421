@@ -7,7 +7,7 @@
 #include "threads/interrupt.h"
 #include "threads/synch.h"
 #include "threads/thread.h"
-#include "lib/kernel/list.h"
+#include <lib/kernel/list.h>
 
   
 /* See [8254] for hardware details of the 8254 timer chip. */
@@ -32,7 +32,7 @@ static void busy_wait (int64_t loops);
 static void real_time_sleep (int64_t num, int32_t denom);
 static void real_time_delay (int64_t num, int32_t denom);
 
-static struct list sleeping_threads;                /* List of sleeping thread, should be ordered through insert */ //---------------------------------------------------------------------------
+static struct list sleep_list; //create global list to store sleep threads------------------------------
 
 /* Sets up the timer to interrupt TIMER_FREQ times per second,
    and registers the corresponding interrupt. */
@@ -42,7 +42,7 @@ timer_init (void)
   pit_configure_channel (0, 2, TIMER_FREQ);
   intr_register_ext (0x20, timer_interrupt, "8254 Timer");
 
-  list_init(&sleeping_threads);                     /* Setup up the list */ //------------------------------------------------------------------------------------------------------------------
+  list_init(&sleep_list);    //initial the list ---------------------------------------------
 }
 
 /* Calibrates loops_per_tick, used to implement brief delays. */
@@ -90,9 +90,10 @@ timer_elapsed (int64_t then)
   return timer_ticks () - then;
 }
 
-//My changes
-/* This will have the thread and the time the thread should wake up, the next thread is basically linked list
-can also add wakeup_time in thread.h struct*/
+/* Sleeps for approximately TICKS timer ticks.  Interrupts must
+   be turned on. */
+
+//implement of timer_sleep----------------------------------------------------------------------------
 struct
 sleeping_thread
 {
@@ -101,65 +102,38 @@ sleeping_thread
   struct sleeping_thread *next_thread;
 };
 
-/* For sorting the list, in acending order */ //--------------------------------------------------------------------------------------------------------------------------
-bool
-compare (const struct list_elem *a, const struct list_elem *b)
-{
-    return list_entry(a, struct thread, sleepelem)->wakeup_time < list_entry(b, struct thread, sleepelem)->wakeup_time;
+//compare method use for sort insert
+bool sleep_thread_less(const struct list_elem *a, const struct list_elem *b, void *aux UNUSED) {
+    const struct thread *t_a = list_entry(a, struct thread, sleepelem);
+    const struct thread *t_b = list_entry(b, struct thread, sleepelem);
+    return t_a->wake_up_time < t_b->wake_up_time;
 }
 
-/* Sleeps for approximately TICKS timer ticks.  Interrupts must
-   be turned on. */
 void
 timer_sleep (int64_t ticks) 
 {
-
-  if (ticks <= 0)                                                                       /* 0 ticks are meaningless and so are negatives */ //----------------------------------------------------------------------
-    return;
-
+  if (ticks <= 0) {
+        return; 
+  }
   int64_t start = timer_ticks();
+  int64_t wake_up_time = start + ticks;
 
-  //Record the time it should wake up //-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
-  struct thread *sleepy = thread_current ();
-  sleepy->wakeup_time = start + ticks;
-
-  //Insert thread into the sleeping thread list in correct order //----------------------------------------------------------------------------------------------------------------------------------------------------
-  // if (list_empty(&sleeping_threads) || list_entry(sleeping_threads.head.next, struct thread, sleepelem)->wakeup_time > start + ticks)   /* This thread should be next out, insert to front of linked list */ //----------------------------------------------------
-  // {
-  //   sleepy->sleepelem.next = &sleeping_threads.head->next;                                       /* Replace the sleepy elem next with the head of list */ //----------------------------------------------------------------
-  //   sleeping_threads.head.prev = &sleepy->sleepelem;                                       /* Replace the old head prev with new head */ //---------------------------------------------------------------------------
-  //   sleeping_threads.head = sleepy->sleepelem;                                             /* The head is now sleepy */ //--------------------------------------------------------------------------------------------
-  // }
-  // else
-  // {
-  //   //Go through each link in list //----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
-  //   struct list_elem *i = sleeping_threads.head;
-  //   while (i.next != NULL)                                                                 /* Iterrate until last elem; after while loop, sleepy should be inserted after i */ //-------------------------------------
-  //   {
-  //     if (!(list_entry(i.next, struct thread, sleepelem)->wakeup_time <= start + ticks))
-  //       break;
-  //     i = i.next;
-  //   }
-
-  //   //Insert the elem in list //---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
-  //   sleepy->sleepelem.next = i.next;
-  //   sleepy->sleepelem.prev = i;
-
-  //   //Update elem around sleepy //-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
-  //   i->next->prev = sleepy->sleepelem;
-  //   i->next = sleepy->sleepelem;
-
-  //   //Update tail of list iftail is changed //-------------------------------------------------------------------------------------------------------------------------------------------------------------------------
-  //   if (i == sleeping_threads->tail)
-  //     sleeping_threads->tail = sleepy->sleepelem;
-  // }
-  list_insert_ordered(&sleeping_threads, &sleepy->sleepelem, compare, NULL);
-
-  //This will lock the thread and schedule the next one //-------------------------------------------------------------------------------------------------------------------------------------------------------------
-  enum intr_level old_level = intr_disable ();         /* thread_block wants intr_off */ //-----------------------------------------------------------------------------------------------------------------------------
-  thread_block ();                                     /* This will lock the thread and schedule the next one */ //-----------------------------------------------------------------------------------------------------
-  intr_set_level (old_level);                          /* Other functions do this, otherwise kernel errors */ //--------------------------------------------------------------------------------------------------------
+  //intial thread
+  struct thread *st = thread_current();
+  //initialize semaphore for thread
+  sema_init(&st->sema , 0);
+  st->wake_up_time = wake_up_time;
+  list_insert_ordered(&sleep_list, &st->sleepelem, sleep_thread_less, NULL);
+  //block
+  sema_down(&st->sema);
+  
+  
 }
+
+//----------------------------------------------------------
+
+
+
 
 /* Sleeps for approximately MS milliseconds.  Interrupts must be
    turned on. */
@@ -232,28 +206,35 @@ timer_print_stats (void)
 }
 
 /* Timer interrupt handler. */
+
+//implement of interrupt--------------------------------------------------------------------------------
 static void
 timer_interrupt (struct intr_frame *args UNUSED)
 {
   ticks++;
   thread_tick ();
 
-  //In tick function, check if there is a sleeping thread, and then check if that thread should wake up //-------------------------------------------------------------------------------------------------------------
-  while (!list_empty(&sleeping_threads) && ticks >= list_entry(sleeping_threads.head.next, struct thread, sleepelem)->wakeup_time)   /* Wake up all threads that should be woken up at this time */ //------------------------
-  {
-    struct thread *wakey = list_entry (sleeping_threads.head.next, struct thread, sleepelem);
+  //wake up in order
+  while (!list_empty(&sleep_list)) {
+        struct list_elem *e = list_front(&sleep_list);
+        struct thread *t =  list_entry(sleep_list.head.next, struct thread, sleepelem);
+        
+        if (t->wake_up_time <= ticks) {
+            list_remove(e);
+            sema_up(&t->sema);
+        } else {
+            break;
+        }
+    }
 
-    //Update the sleeping thread list to remove the head //------------------------------------------------------------------------------------------------------------------------------------------------------------
-    // sleeping_threads->head = sleeping_threads->head->next;
-    // sleeping_threads->head->prev = NULL;
-    list_pop_front (&sleeping_threads);
-
-    //wakey is removed from list //------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
-    // wakey->sleepelem->prev = NULL;
-    // wakey->sleepelem->next = NULL;
-    thread_unblock (wakey);
-  }
+  // if(ticks % TIMER_FREQ == 0){
+  //   update_all_recent_cpu();
+  //   update_load_avg();
+  // }
+  
+  
 }
+//---------------------------------------
 
 /* Returns true if LOOPS iterations waits for more than one timer
    tick, otherwise false. */
@@ -325,3 +306,4 @@ real_time_delay (int64_t num, int32_t denom)
   ASSERT (denom % 1000 == 0);
   busy_wait (loops_per_tick * num / 1000 * TIMER_FREQ / (denom / 1000)); 
 }
+
